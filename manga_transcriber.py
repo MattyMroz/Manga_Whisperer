@@ -8,7 +8,7 @@ import re
 from PIL import Image
 import numpy as np
 import torch
-from transformers import AutoModel
+from transformers import AutoModel, AutoTokenizer
 import typer
 from rich import print
 from rich.logging import RichHandler
@@ -40,8 +40,18 @@ class MangaTranscriber:
         self.transcription_images = transcription_images.resolve()
         self.skip_existing = skip_existing
         self.log = log
-        self.model = AutoModel.from_pretrained(
-            "ragavsachdeva/magi", trust_remote_code=True).cuda()
+        self.log.info("Pobieranie modelu MAGI...")
+        try:
+            self.model = AutoModel.from_pretrained("ragavsachdeva/magi", trust_remote_code=True)
+            self.tokenizer = AutoTokenizer.from_pretrained("ragavsachdeva/magi")
+            if torch.cuda.is_available():
+                self.model = self.model.cuda()
+                self.log.info("Model MAGI załadowany na GPU.")
+            else:
+                self.log.warning("GPU niedostępne. Model MAGI działa na CPU.")
+        except Exception as e:
+            self.log.error(f"Błąd podczas ładowania modelu MAGI: {str(e)}")
+            raise
 
     def run(self) -> None:
         if not self.input.exists():
