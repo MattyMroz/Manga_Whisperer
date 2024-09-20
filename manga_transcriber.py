@@ -1,13 +1,13 @@
-# magi.py
 import logging
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import re
 
-from PIL import Image
+import cv2
 import numpy as np
 import torch
+from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 import typer
 from rich import print
@@ -16,6 +16,7 @@ from rich.progress import BarColumn, Progress, TimeRemainingColumn
 
 
 class MangaTranscriber:
+    model_str: str = None
     input: Path = None
     transcription: Path = None
     transcription_images: Path = None
@@ -29,12 +30,14 @@ class MangaTranscriber:
 
     def __init__(
         self,
+        model: str,
         input: Path,
         transcription: Path,
         transcription_images: Path,
         skip_existing: bool = False,
         log: logging.Logger = logging.getLogger(),
     ) -> None:
+        self.model_str = model
         self.input = input.resolve()
         self.transcription = transcription.resolve()
         self.transcription_images = transcription_images.resolve()
@@ -42,8 +45,10 @@ class MangaTranscriber:
         self.log = log
         self.log.info("Pobieranie modelu MAGI...")
         try:
-            self.model = AutoModel.from_pretrained("ragavsachdeva/magi", trust_remote_code=True)
-            self.tokenizer = AutoTokenizer.from_pretrained("ragavsachdeva/magi")
+            self.model = AutoModel.from_pretrained(
+                self.model_str, trust_remote_code=True)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_str, trust_remote_code=True)
             if torch.cuda.is_available():
                 self.model = self.model.cuda()
                 self.log.info("Model MAGI załadowany na GPU.")
@@ -65,7 +70,7 @@ class MangaTranscriber:
         self.transcription_images.mkdir(parents=True, exist_ok=True)
 
         images = list(self.input.rglob("*.*"))
-        images = [img for img in images if img.suffix.lower()
+        images = [img for img in images if img.suffix.lower()[1:]
                   in self.supported_extensions]
 
         with Progress(
@@ -146,12 +151,14 @@ app = typer.Typer()
 
 @app.command()
 def main(
-    input: Path = typer.Option(Path(
-        "/kaggle/working/image_working_space/input"), "--input", "-i", help="Input folder"),
-    transcription: Path = typer.Option(Path("/kaggle/working/image_working_space/transcription"),
-                                       "--transcription", "-t", help="Transcription output folder"),
-    transcription_images: Path = typer.Option(Path("/kaggle/working/image_working_space/transcription_images"),
-                                              "--transcription-images", "-ti", help="Transcription images output folder"),
+    model: str = typer.Option(
+        "ragavsachdeva/magi", "--model", "-m", help="Model to use for transcription"),
+    input: Path = typer.Option(
+        Path("input"), "--input", "-i", help="Input folder"),
+    transcription: Path = typer.Option(Path(
+        "transcription"), "--transcription", "-t", help="Transcription output folder"),
+    transcription_images: Path = typer.Option(Path(
+        "transcription_images"), "--transcription-images", "-ti", help="Transcription images output folder"),
     skip_existing: bool = typer.Option(
         False, "--skip-existing", "-se", help="Skip existing output files"),
     verbose: bool = typer.Option(
@@ -165,6 +172,7 @@ def main(
     )
 
     transcriber = MangaTranscriber(
+        model=model,
         input=input,
         transcription=transcription,
         transcription_images=transcription_images,
