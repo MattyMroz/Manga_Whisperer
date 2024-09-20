@@ -1,7 +1,6 @@
 # magi.py
 import logging
 import sys
-from enum import Enum
 from pathlib import Path
 from typing import List
 import re
@@ -23,29 +22,9 @@ class MangaTranscriber:
     skip_existing: bool = None
     log: logging.Logger = None
     supported_extensions: List[str] = [
-            "bmp",
-            "dib",
-            "jpeg",
-            "jpg",
-            "jpe",
-            "jp2",
-            "png",
-            "webp",
-            "pbm",
-            "pgm",
-            "ppm",
-            "pxm",
-            "pnm",
-            "pfm",
-            "sr",
-            "ras",
-            "tiff",
-            "tif",
-            "exr",
-            "hdr",
-            "pic",
-            "gif",
-            "tga",
+        "bmp", "dib", "jpeg", "jpg", "jpe", "jp2", "png", "webp",
+        "pbm", "pgm", "ppm", "pxm", "pnm", "pfm", "sr", "ras",
+        "tiff", "tif", "exr", "hdr", "pic", "gif", "tga",
     ]
 
     def __init__(
@@ -112,8 +91,7 @@ class MangaTranscriber:
             return
 
         try:
-            image = Image.open(img_path).convert("RGB")
-            image_np = np.array(image)
+            image_np = self.read_image_as_np_array(img_path)
 
             with torch.no_grad():
                 results = self.model.predict_detections_and_associations([
@@ -136,6 +114,12 @@ class MangaTranscriber:
         except Exception as e:
             self.log.error(
                 f"An error occurred while processing the image: {str(e)}")
+
+    def read_image_as_np_array(self, image_path):
+        with open(image_path, "rb") as file:
+            image = Image.open(file).convert("L").convert("RGB")
+            image = np.array(image)
+        return image
 
     def clean_transcript(self, transcript: str) -> str:
         lines = transcript.split('\n')
