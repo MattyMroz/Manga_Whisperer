@@ -1,14 +1,15 @@
+# magi.py
 import logging
 import sys
+from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 import re
 
-import cv2
+from PIL import Image
 import numpy as np
 import torch
-from PIL import Image
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel
 import typer
 from rich import print
 from rich.logging import RichHandler
@@ -16,47 +17,52 @@ from rich.progress import BarColumn, Progress, TimeRemainingColumn
 
 
 class MangaTranscriber:
-    model_str: str = None
     input: Path = None
     transcription: Path = None
     transcription_images: Path = None
     skip_existing: bool = None
     log: logging.Logger = None
     supported_extensions: List[str] = [
-        "bmp", "dib", "jpeg", "jpg", "jpe", "jp2", "png", "webp",
-        "pbm", "pgm", "ppm", "pxm", "pnm", "pfm", "sr", "ras",
-        "tiff", "tif", "exr", "hdr", "pic", "gif", "tga",
+        "bmp",
+        "dib",
+        "jpeg",
+        "jpg",
+        "jpe",
+        "jp2",
+        "png",
+        "webp",
+        "pbm",
+        "pgm",
+        "ppm",
+        "pxm",
+        "pnm",
+        "pfm",
+        "sr",
+        "ras",
+        "tiff",
+        "tif",
+        "exr",
+        "hdr",
+        "pic",
+        "gif",
+        "tga",
     ]
 
     def __init__(
         self,
-        model: str,
         input: Path,
         transcription: Path,
         transcription_images: Path,
         skip_existing: bool = False,
         log: logging.Logger = logging.getLogger(),
     ) -> None:
-        self.model_str = model
         self.input = input.resolve()
         self.transcription = transcription.resolve()
         self.transcription_images = transcription_images.resolve()
         self.skip_existing = skip_existing
         self.log = log
-        self.log.info("Pobieranie modelu MAGI...")
-        try:
-            self.model = AutoModel.from_pretrained(
-                self.model_str, trust_remote_code=True)
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_str, trust_remote_code=True)
-            if torch.cuda.is_available():
-                self.model = self.model.cuda()
-                self.log.info("Model MAGI załadowany na GPU.")
-            else:
-                self.log.warning("GPU niedostępne. Model MAGI działa na CPU.")
-        except Exception as e:
-            self.log.error(f"Błąd podczas ładowania modelu MAGI: {str(e)}")
-            raise
+        self.model = AutoModel.from_pretrained(
+            "ragavsachdeva/magi", trust_remote_code=True).cuda()
 
     def run(self) -> None:
         if not self.input.exists():
@@ -70,7 +76,7 @@ class MangaTranscriber:
         self.transcription_images.mkdir(parents=True, exist_ok=True)
 
         images = list(self.input.rglob("*.*"))
-        images = [img for img in images if img.suffix.lower()[1:]
+        images = [img for img in images if img.suffix.lower()
                   in self.supported_extensions]
 
         with Progress(
@@ -106,7 +112,8 @@ class MangaTranscriber:
             return
 
         try:
-            image_np = self.read_image_as_np_array(img_path)
+            image = Image.open(img_path).convert("RGB")
+            image_np = np.array(image)
 
             with torch.no_grad():
                 results = self.model.predict_detections_and_associations([
@@ -130,12 +137,6 @@ class MangaTranscriber:
             self.log.error(
                 f"An error occurred while processing the image: {str(e)}")
 
-    def read_image_as_np_array(self, image_path):
-        with open(image_path, "rb") as file:
-            image = Image.open(file).convert("L").convert("RGB")
-            image = np.array(image)
-        return image
-
     def clean_transcript(self, transcript: str) -> str:
         lines = transcript.split('\n')
         cleaned_lines = []
@@ -151,8 +152,6 @@ app = typer.Typer()
 
 @app.command()
 def main(
-    model: str = typer.Option(
-        "ragavsachdeva/magi", "--model", "-m", help="Model to use for transcription"),
     input: Path = typer.Option(
         Path("input"), "--input", "-i", help="Input folder"),
     transcription: Path = typer.Option(Path(
@@ -172,7 +171,6 @@ def main(
     )
 
     transcriber = MangaTranscriber(
-        model=model,
         input=input,
         transcription=transcription,
         transcription_images=transcription_images,
