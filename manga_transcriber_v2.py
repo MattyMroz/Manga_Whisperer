@@ -168,8 +168,7 @@ class MangaTranscriber:
     def clean_transcript(self, transcript: str) -> str:
         lines = transcript.split('\n')
         cleaned_lines = []
-        for line in lines[1:]:  # Skip the first line (### Transcript ###)
-        # for line in lines:
+        for line in lines:
             line = re.sub(r'<[^>]+>:\s*', '', line)  # Remove <???>: patterns
             if line.strip():
                 cleaned_lines.append(line)
